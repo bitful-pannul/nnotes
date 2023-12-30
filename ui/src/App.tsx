@@ -1,61 +1,36 @@
 // App.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Editor from './components/editor';
-import FileTree from './components/filetree';
+import Item from './components/Item';
+import { TreeItem, TreeView } from '@mui/x-tree-view';
 import { Note } from './types';
 
+export const APP_NAME = "notenecs:notenecs:template.uq"
+
 function App() {
-  const [currentPath, setCurrentPath] = useState<string>("");
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [newNoteName, setNewNoteName] = useState<string>("");
+  const [currentNote, setCurrentNote] = useState<Note | null>(null);
 
-  useEffect(() => {
-    fetch(`/notenecs:notenecs:template.uq/notes${currentPath}`)
-      .then(response => response.json())
-      .then(data => setNotes(data.AllNotes.notes));
-  }, [currentPath]);
-
-  const handleNoteSelect = (note: Note) => {
-    if (note.is_dir) {
-      setCurrentPath(note.path);
-    } else {
-      setSelectedNote(note);
-    }
+  const rootNote: Note = {
+    path: 'notes',
+    is_dir: true,
+    body: '',
   };
-
-  const handleNewNote = () => {
-    // TODO: Implement new note creation
-  };
-
-  const pathParts = currentPath.split('/').filter(Boolean);
 
   return (
-    <div style={{ display: 'flex' }}>
-      <nav className="nav">
-        {pathParts.map((part, index) => (
-          <a 
-            href={pathParts.slice(0, index + 1).join('/')} 
-            key={index} 
-            onClick={(event) => {
-              event.preventDefault();
-              setCurrentPath(pathParts.slice(0, index + 1).join('/'));
-            }}
-          >
-            {part.split('/').pop()}
-          </a>
-        ))}
-        <input value={newNoteName} onChange={e => setNewNoteName(e.target.value)} />
-        <button onClick={handleNewNote}>New</button>
-      </nav>
-      <div className="filetree">
-        <FileTree notes={notes} onNoteSelect={handleNoteSelect} />
+    <div className="app">
+      <h2>nnotes, edit files in your app drive</h2>
+      <div className="treeview">
+        <TreeView defaultExpanded={['/notes']}>
+          <Item key={rootNote.path} note={rootNote} setCurrentEditorText={setCurrentNote} />
+        </TreeView>
       </div>
       <div className="editor">
-        {selectedNote && <Editor note={selectedNote} />}
+        {currentNote && (
+          <Editor note={currentNote} isOpen={!!currentNote} />
+        )}
       </div>
     </div>
   );
 }
-
 export default App;

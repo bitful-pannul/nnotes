@@ -36,7 +36,7 @@ struct NoteInfo {
 #[derive(Debug, Serialize, Deserialize)]
 enum NoteResponse {
     Ack,
-    AllNotes { notes: Vec<NoteInfo>},  // path, is_dir
+    Notes { notes: Vec<NoteInfo>},  // path, is_dir
     Note { path: String, body: String },
 }
 
@@ -46,6 +46,10 @@ fn strip_url(url: &str, substring: &str) -> String {
        .map(|index| &url[index + substring.len()..])
        .unwrap_or("")
        .to_string()
+}
+
+fn strip_leading_slash(path: &str) -> String {
+    path.splitn(2, '/').nth(1).unwrap_or("").to_string()
 }
 
 fn handle_http_server_request(
@@ -68,21 +72,22 @@ fn handle_http_server_request(
         }
         HttpServerRequest::WebSocketClose(_channel_id) => {}
         HttpServerRequest::Http(IncomingHttpRequest { method, raw_path, .. }) => {
+            
+            let mut path = strip_url(&raw_path, &"template.uq/notes");
+            // todo better paths 
+            if path == "" {
+                path = drive_dir.path.clone();
+            } else {
+                path = format!("{}{}", &drive_dir.path, path);
+            }
+            path = strip_leading_slash(&path);
+
             match method.as_str() {
                 // Get a path
                 "GET" => {
                     let mut headers = HashMap::new();
                     headers.insert("Content-Type".to_string(), "application/json".to_string());
                     
-                    let mut path = strip_url(&raw_path, &"template.uq/notes");
-                    println!("path baby: {}", &path);
-                    // todo better paths 
-                    if path == "" {
-                        path = drive_dir.path.clone();
-                    } else {
-                        path = format!("{}{}", &drive_dir.path, path);
-                    }
-
                     let metadata = metadata(&path)?;
 
                     match metadata.file_type {
@@ -92,22 +97,24 @@ fn handle_http_server_request(
                             let entries = entries
                             .iter()
                             .map(|entry| {
-                                let path = format!("{}/{}", &drive_dir.path, entry.path);
                                 let is_dir = entry.file_type == FileType::Directory;
-                                NoteInfo { path, is_dir, body: "".into() }
+
+                                NoteInfo { path: strip_leading_slash(&entry.path), is_dir, body: "".into() }
                             })
                             .collect::<Vec<_>>();
 
                             send_response(
                                 StatusCode::OK,
                                 Some(headers),
-                                serde_json::to_vec(&NoteResponse::AllNotes { notes: entries }).unwrap(),
+                                serde_json::to_vec(&NoteResponse::Notes { notes: entries }).unwrap(),
                             )?;
                         }
                         FileType::File => {
                             let file = open_file(&path, false)?;
                             let bytes = file.read()?;
                             let text = String::from_utf8(bytes)?;
+
+                            let path = strip_leading_slash(&path);
 
                             send_response(
                                 StatusCode::OK,
@@ -123,6 +130,7 @@ fn handle_http_server_request(
                         println!("no payload in BOST");
                         return Ok(());
                     };
+                    
                     handle_note_request(
                         &drive_dir,
                         &payload.bytes,
@@ -156,6 +164,7 @@ fn handle_note_request(
             path,
             body,
         } => {
+            let path = strip_leading_slash(&path);
             let file_path = format!("{}/{}", &drive_dir.path, path);
             let file = create_file(&file_path)?;
             file.write(body.as_bytes())?;
@@ -163,6 +172,8 @@ fn handle_note_request(
         NoteRequest::AddFolder {
             path,
         } => {
+            let path = strip_leading_slash(&path);
+
             let dir_path = format!("{}/{}", &drive_dir.path, path);
             let _ = open_dir(&dir_path, true);
         }

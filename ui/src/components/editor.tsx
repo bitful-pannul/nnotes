@@ -1,37 +1,56 @@
 // Editor.tsx
 import React, { useState, useEffect } from 'react';
 import { Note } from '../types';
+import { APP_NAME } from '../App';
 
 interface EditorProps {
   note: Note;
+  isOpen: boolean;
 }
 
-const Editor: React.FC<EditorProps> = ({ note }) => {
-  const [content, setContent] = useState<string>(note.body || '');
+const TextEditor: React.FC<EditorProps> = ({ note, isOpen }) => {
+  const [text, setText] = useState(note.body || '');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
-    setContent(note.body || '');
+    console.log('note: in editor', note);
+    setText(note.body || '');
   }, [note]);
 
-  const handleContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(event.target.value);
+  const handleSave = () => {
+    console.log("note path saving: ", note.path);
+
+    fetch(`/${APP_NAME}/${note.path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        SaveNote: {
+          path: note.path,
+          body: text,
+        },
+      }),
+    })
+      .then(response => {
+        if (response.status === 201) {
+          setSaveMessage('saved!');
+          setTimeout(() => setSaveMessage(''), 1000); 
+        }
+      })
   };
 
-  const handleSave = () => {
-    fetch(note.path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: content }),
-    });
-  };
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div>
-      <h2>{note.path}</h2>
-      <textarea value={content} onChange={handleContentChange} />
+      <textarea value={text} onChange={e => setText(e.target.value)} />
       <button onClick={handleSave}>Save</button>
+      {saveMessage && <p>{saveMessage}</p>}
     </div>
   );
-}
+};
 
-export default Editor;
+export default TextEditor;

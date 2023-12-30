@@ -18,7 +18,6 @@ code {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
   padding: 2em;
   box-sizing: border-box;
   background-color: #eee;
