@@ -9,7 +9,7 @@ use uqbar_process_lib::{
         serve_ui, HttpServerRequest, IncomingHttpRequest, StatusCode,
     },
     println, Address, Message,
-    vfs::{create_drive, create_file, open_dir, Directory, FileType}
+    vfs::{create_drive, create_file, open_dir, Directory, FileType, open_file, metadata}
 };
 
 wit_bindgen::generate!({
@@ -23,14 +23,30 @@ wit_bindgen::generate!({
 #[derive(Debug, Serialize, Deserialize)]
 enum NoteRequest {
     SaveNote { path: String, body: String },
-    // AllNotes,
+    // GetNote { path: String },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NoteInfo {
+    path: String,
+    is_dir: bool,
+    body: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 enum NoteResponse {
     Ack,
-    AllNotes { notes: Vec<(String, bool)>},  // path, is_dir
+    AllNotes { notes: Vec<NoteInfo>},  // path, is_dir
     Note { path: String, body: String },
+}
+
+// for url path parsing
+fn strip_url(url: &str, substring: &str) -> String {
+    if let Some(index) = url.find(substring) {
+        String::from(&url[index + substring.len()..])
+    } else {
+        String::from(url)
+    }
 }
 
 fn handle_http_server_request(
@@ -45,7 +61,7 @@ fn handle_http_server_request(
     };
 
     match server_request {
-        HttpServerRequest::WebSocketOpen { channel_id, .. } => {
+        HttpServerRequest::WebSocketOpen { .. } => {
             // Note: not using websockets rn
         }
         HttpServerRequest::WebSocketPush { .. } => {
@@ -54,29 +70,53 @@ fn handle_http_server_request(
         HttpServerRequest::WebSocketClose(_channel_id) => {}
         HttpServerRequest::Http(IncomingHttpRequest { method, raw_path, .. }) => {
             match method.as_str() {
-                // Get all messages
+                // Get a path
                 "GET" => {
                     let mut headers = HashMap::new();
                     headers.insert("Content-Type".to_string(), "application/json".to_string());
                     
-                    println!("raw path: {}", raw_path);
-                    println!("drive dir: {:?}", &drive_dir.path);
+                    let mut path = strip_url(&raw_path, &"template.uq/notes");
+                    println!("path baby: {}", &path);
+                    // todo better paths 
+                    if path == "" {
+                        path = drive_dir.path.clone();
+                    } else {
+                        path = format!("{}/{}", &drive_dir.path, path);
+                    }
 
-                    let entries = drive_dir.read()?;
-                    let entries = entries
-                        .iter()
-                        .map(|entry| {
-                            let path = format!("{}/{}", &drive_dir.path, entry.path);
-                            let is_dir = entry.file_type == FileType::Directory;
-                            (path, is_dir)
-                        })
-                        .collect::<Vec<_>>();
+                    let metadata = metadata(&path)?;
 
-                    send_response(
-                        StatusCode::OK,
-                        Some(headers),
-                        serde_json::to_vec(&NoteResponse::AllNotes { notes: entries }).unwrap(),
-                    )?;
+                    match metadata.file_type {
+                        FileType::Directory => {
+                            let dir = open_dir(&path, false)?;
+                            let entries = dir.read()?;
+                            let entries = entries
+                            .iter()
+                            .map(|entry| {
+                                let path = format!("{}/{}", &drive_dir.path, entry.path);
+                                let is_dir = entry.file_type == FileType::Directory;
+                                NoteInfo { path, is_dir, body: "".into() }
+                            })
+                            .collect::<Vec<_>>();
+
+                            send_response(
+                                StatusCode::OK,
+                                Some(headers),
+                                serde_json::to_vec(&NoteResponse::AllNotes { notes: entries }).unwrap(),
+                            )?;
+                        }
+                        FileType::File => {
+                            let file = open_file(&path, false)?;
+                            let bytes = file.read()?;
+                            let text = String::from_utf8(bytes)?;
+
+                            send_response(
+                                StatusCode::OK,
+                                Some(headers),
+                                serde_json::to_vec(&NoteResponse::Note { path: path, body: text }).unwrap(),
+                            )?;                        }
+                        _ => println!("got something else than dir or file...")
+                    }
                 }
                 // Send a message
                 "POST" => {
