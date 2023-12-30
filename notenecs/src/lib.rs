@@ -23,7 +23,7 @@ wit_bindgen::generate!({
 #[derive(Debug, Serialize, Deserialize)]
 enum NoteRequest {
     SaveNote { path: String, body: String },
-    // GetNote { path: String },
+    AddFolder { path: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,6 +159,12 @@ fn handle_note_request(
             let file_path = format!("{}/{}", &drive_dir.path, path);
             let file = create_file(&file_path)?;
             file.write(body.as_bytes())?;
+        }
+        NoteRequest::AddFolder {
+            path,
+        } => {
+            let dir_path = format!("{}/{}", &drive_dir.path, path);
+            let _ = open_dir(&dir_path, true);
         }
     };
 
