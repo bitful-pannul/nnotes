@@ -1,99 +1,89 @@
+/* App.css */
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
-  text-align: center;
   width: 75%;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 1em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-.input-row {
+.nav {
   display: flex;
-  flex-direction: row;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  width: 100%;
+  padding: 1em;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  margin-bottom: 2em;
 }
 
-.input-row > button {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  padding: 0.3em 0.6em;
+.nav a {
+  margin-right: 1em;
+  color: #333;
+  text-decoration: none;
 }
 
-.input-row > input {
+.nav a:hover {
+  color: #666;
+}
+
+.nav input {
+  margin-right: 1em;
+  padding: 0.5em;
   border: 1px solid #ccc;
-  padding: 0.32em 0.6em;
-  font-size: 1em;
-  border-radius: 0.25em;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  border-radius: 5px;
+}
+
+.nav button {
+  padding: 0.5em 1em;
+  border: none;
+  border-radius: 5px;
+  background-color: #333;
+  color: #fff;
+  cursor: pointer;
+}
+
+.nav button:hover {
+  background-color: #666;
+}
+
+.filetree, .editor {
+  flex: 1;
+  padding: 1em;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.filetree {
+  margin-right: 1em;
+}
+
+.filetree div {
+  cursor: pointer;
+}
+
+.filetree div:hover {
+  color: #666;
+}
+
+.editor textarea {
   width: 100%;
+  height: 80%;
+  padding: 1em;
+  border: 1px solid #ccc;
+  border-radius: 5px;
 }
 
-.chat-button {
-  padding: 0.25em 0.5em;
-  margin-bottom: 1em;
-  background-color: cornflowerblue;
+.editor button {
+  padding: 0.5em 1em;
+  border: none;
+  border-radius: 5px;
+  background-color: #333;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 1em;
 }
 
-.chat-button.selected {
-  background-color: blue;
-  color: white;
-  cursor: default;
-}
-
-.message-list {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 0.5em;
-}
-
-.message {
-  align-self: flex-start;
-  background-color: lightgray;
-  border-radius: 0.25em;
-  padding: 0.25em 0.5em;
-  margin-bottom: 0.5em;
-}
-
-.message.ours {
-  align-self: flex-end;
-  background-color: blue;
-  color: white;
+.editor button:hover {
+  background-color: #666;
 }
