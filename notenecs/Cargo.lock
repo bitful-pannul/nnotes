@@ -381,7 +381,7 @@ checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 [[package]]
 name = "uqbar_process_lib"
 version = "0.4.0"
-source = "git+ssh://git@github.com/uqbar-dao/process_lib.git?rev=056a7e8#056a7e814573ed6d220b7c483e08c3036a620c58"
+source = "git+ssh://git@github.com/uqbar-dao/process_lib.git?rev=6b6902b#6b6902b0ae0dd2fce8646e17d4765203afbb017e"
 dependencies = [
  "anyhow",
  "bincode",

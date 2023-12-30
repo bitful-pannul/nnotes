@@ -1,14 +1,15 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File};
 
 use anyhow::{self};
 use serde::{Deserialize, Serialize};
 use uqbar_process_lib::{
     await_message, get_payload,
     http::{
-        bind_http_path, send_response, send_ws_push,
-        serve_ui, HttpServerRequest, IncomingHttpRequest, StatusCode, WsMessageType, bind_ws_path,
+        bind_http_path, send_response,
+        serve_ui, HttpServerRequest, IncomingHttpRequest, StatusCode,
     },
     println, Address, Message, Payload, ProcessId, Request, Response,
+    vfs::{create_drive, create_file, open_dir, Directory, FileType}
 };
 
 wit_bindgen::generate!({
@@ -20,93 +21,72 @@ wit_bindgen::generate!({
 });
 
 #[derive(Debug, Serialize, Deserialize)]
-enum ChatRequest {
-    Send { target: String, message: String },
-    History,
+enum NoteRequest {
+    SaveNote { path: String, body: String },
+    // AllNotes,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum ChatResponse {
+enum NoteResponse {
     Ack,
-    History { messages: MessageArchive },
+    AllNotes { notes: Vec<(String, bool)>},  // path, is_dir
+    Note { path: String, body: String },
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct ChatMessage {
-    author: String,
-    content: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct NewMessage {
-    chat: String,
-    author: String,
-    content: String,
-}
-
-type MessageArchive = HashMap<String, Vec<ChatMessage>>;
 
 fn handle_http_server_request(
-    our: &Address,
-    message_archive: &mut MessageArchive,
-    our_channel_id: &mut u32,
-    source: &Address,
+    _our: &Address,
+    drive_dir: &Directory, 
+    _source: &Address,
     ipc: &[u8],
 ) -> anyhow::Result<()> {
     let Ok(server_request) = serde_json::from_slice::<HttpServerRequest>(ipc) else {
-        // Fail silently if we can't parse the request
+        println!("notenecs: couldn't parse request!");
         return Ok(());
     };
 
     match server_request {
         HttpServerRequest::WebSocketOpen { channel_id, .. } => {
-            // Set our channel_id to the newly opened channel
-            // Note: this code could be improved to support multiple channels
-            *our_channel_id = channel_id;
+            // Note: not using websockets rn
         }
         HttpServerRequest::WebSocketPush { .. } => {
-            let Some(payload) = get_payload() else {
-                return Ok(());
-            };
-
-            handle_chat_request(
-                our,
-                message_archive,
-                our_channel_id,
-                source,
-                &payload.bytes,
-                false,
-            )?;
+            // Note: not using websockets rn
         }
         HttpServerRequest::WebSocketClose(_channel_id) => {}
-        HttpServerRequest::Http(IncomingHttpRequest { method, .. }) => {
+        HttpServerRequest::Http(IncomingHttpRequest { method, raw_path, .. }) => {
             match method.as_str() {
                 // Get all messages
                 "GET" => {
                     let mut headers = HashMap::new();
                     headers.insert("Content-Type".to_string(), "application/json".to_string());
+                    
+                    println!("raw path: {}", raw_path);
+                    println!("drive dir: {:?}", &drive_dir.path);
+
+                    let entries = drive_dir.read()?;
+                    let entries = entries
+                        .iter()
+                        .map(|entry| {
+                            let path = format!("{}/{}", &drive_dir.path, entry.path);
+                            let is_dir = entry.file_type == FileType::Directory;
+                            (path, is_dir)
+                        })
+                        .collect::<Vec<_>>();
 
                     send_response(
                         StatusCode::OK,
                         Some(headers),
-                        serde_json::to_vec(&ChatResponse::History {
-                            messages: message_archive.clone(),
-                        })
-                        .unwrap(),
+                        serde_json::to_vec(&NoteResponse::AllNotes { notes: entries }).unwrap(),
                     )?;
                 }
                 // Send a message
                 "POST" => {
                     let Some(payload) = get_payload() else {
+                        println!("no payload in BOST");
                         return Ok(());
                     };
-                    handle_chat_request(
-                        our,
-                        message_archive,
-                        our_channel_id,
-                        source,
+                    handle_note_request(
+                        &drive_dir,
                         &payload.bytes,
-                        true,
                     )?;
 
                     // Send an http response via the http server
@@ -123,116 +103,23 @@ fn handle_http_server_request(
     Ok(())
 }
 
-fn handle_chat_request(
-    our: &Address,
-    message_archive: &mut MessageArchive,
-    channel_id: &mut u32,
-    source: &Address,
+fn handle_note_request(
+    drive_dir: &Directory,
     ipc: &[u8],
-    is_http: bool,
 ) -> anyhow::Result<()> {
-    let Ok(chat_request) = serde_json::from_slice::<ChatRequest>(ipc) else {
-        // Fail silently if we can't parse the request
+    let Ok(chat_request) = serde_json::from_slice::<NoteRequest>(ipc) else {
+        println!("couldn't parse note request!");
         return Ok(());
     };
 
     match chat_request {
-        ChatRequest::Send {
-            ref target,
-            ref message,
+        NoteRequest::SaveNote {
+            path,
+            body,
         } => {
-            // counterparty will be the other node in the chat with us
-            let (counterparty, author) = if target == &our.node {
-                (&source.node, source.node.clone())
-            } else {
-                (target, our.node.clone())
-            };
-
-            // If the target is not us, send a request to the target
-
-            if target != &our.node {
-                println!("new message from {}: {}", source.node, message);
-
-                match Request::new()
-                    .target(Address {
-                        node: target.clone(),
-                        process: ProcessId::from_str("notenecs:notenecs:template.uq")?,
-                    })
-                    .ipc(ipc)
-                    .send_and_await_response(5) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            println!("testing: send request error: {:?}", e,);
-                            return Ok(());
-                        }
-                    };
-            }
-
-            // Retreive the message archive for the counterparty, or create a new one if it doesn't exist
-            let messages = match message_archive.get_mut(counterparty) {
-                Some(messages) => messages,
-                None => {
-                    message_archive.insert(counterparty.clone(), Vec::new());
-                    message_archive.get_mut(counterparty).unwrap()
-                }
-            };
-
-            let new_message = ChatMessage {
-                author: author.clone(),
-                content: message.clone(),
-            };
-
-            // If this is an HTTP request, handle the response in the calling function
-            if is_http {
-                // Add the new message to the archive
-                messages.push(new_message);
-                return Ok(());
-            }
-
-            // If this is not an HTTP request, send a response to the other node
-            Response::new()
-                .ipc(serde_json::to_vec(&ChatResponse::Ack).unwrap())
-                .send()
-                .unwrap();
-
-            // Add the new message to the archive
-            messages.push(new_message);
-
-            // Generate a Payload for the new message
-            let payload = Payload {
-                mime: Some("application/json".to_string()),
-                bytes: serde_json::json!({
-                    "NewMessage": NewMessage {
-                        chat: counterparty.clone(),
-                        author,
-                        content: message.clone(),
-                    }
-                })
-                .to_string()
-                .as_bytes()
-                .to_vec(),
-            };
-
-            // Send a WebSocket message to the http server in order to update the UI
-            send_ws_push(
-                our.node.clone(),
-                channel_id.clone(),
-                WsMessageType::Text,
-                payload,
-            )?;
-        }
-        ChatRequest::History => {
-            // If this is an HTTP request, send a response to the http server
-
-            Response::new()
-                .ipc(
-                    serde_json::to_vec(&ChatResponse::History {
-                        messages: message_archive.clone(),
-                    })
-                    .unwrap(),
-                )
-                .send()
-                .unwrap();
+            let file_path = format!("{}/{}", &drive_dir.path, path);
+            let file = create_file(&file_path)?;
+            file.write(body.as_bytes())?;
         }
     };
 
@@ -241,10 +128,9 @@ fn handle_chat_request(
 
 fn handle_message(
     our: &Address,
-    message_archive: &mut MessageArchive,
-    channel_id: &mut u32,
+    drive_dir: &Directory,
 ) -> anyhow::Result<()> {
-    let message = await_message().unwrap();
+    let message = await_message()?;
 
     match message {
         Message::Response { .. } => {
@@ -256,10 +142,8 @@ fn handle_message(
             ref ipc,
             ..
         } => {
-            // Requests that come from other nodes running this app
-            handle_chat_request(our, message_archive, channel_id, source, &ipc, false)?;
-            // Requests that come from our http server
-            handle_http_server_request(our, message_archive, channel_id, source, ipc)?;
+            // Requests that come from our http server, handle intranode later too. 
+            handle_http_server_request(our, drive_dir, source, ipc)?;
         }
     }
 
@@ -272,20 +156,23 @@ impl Guest for Component {
         println!("notenecs: begin");
 
         let our = Address::from_str(&our).unwrap();
-        let mut message_archive: MessageArchive = HashMap::new();
-        let mut channel_id = 0;
+        // let mut channel_id = 0;
 
         // Bind UI files to routes; index.html is bound to "/"
         serve_ui(&our, "ui").unwrap();
 
         // Bind HTTP path /messages
-        bind_http_path("/messages", true, false).unwrap();
+        bind_http_path("/notes", true, false).unwrap();
 
         // Bind WebSocket path
-        bind_ws_path("/", true, false).unwrap();
+        // bind_ws_path("/", true, false).unwrap();
+
+        // Create vfs drive
+        let drive = create_drive(our.package_id(), "notes").unwrap();
+        let drive_dir = open_dir(&drive, false).unwrap();
 
         loop {
-            match handle_message(&our, &mut message_archive, &mut channel_id) {
+            match handle_message(&our, &drive_dir) {
                 Ok(()) => {}
                 Err(e) => {
                     println!("notenecs: error: {:?}", e);
