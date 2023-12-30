@@ -161,7 +161,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "notenecs"
+name = "nnotes"
 version = "0.1.0"
 dependencies = [
  "anyhow",

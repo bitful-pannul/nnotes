@@ -5,7 +5,7 @@ import Item from './components/Item';
 import { TreeItem, TreeView } from '@mui/x-tree-view';
 import { Note } from './types';
 
-export const APP_NAME = "notenecs:notenecs:template.uq"
+export const APP_NAME = "nnotes:nnotes:template.uq"
 
 function App() {
   const [notes, setNotes] = useState<Note[]>([]);

@@ -1,7 +1,7 @@
 [
     {
-        "process_name": "notenecs",
-        "process_wasm_path": "/notenecs.wasm",
+        "process_name": "nnotes",
+        "process_wasm_path": "/nnotes.wasm",
         "on_exit": "Restart",
         "request_networking": true,
         "request_messaging": [

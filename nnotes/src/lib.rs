@@ -59,7 +59,7 @@ fn handle_http_server_request(
     ipc: &[u8],
 ) -> anyhow::Result<()> {
     let Ok(server_request) = serde_json::from_slice::<HttpServerRequest>(ipc) else {
-        println!("notenecs: couldn't parse request!");
+        println!("nnotes: couldn't parse request!");
         return Ok(());
     };
 
@@ -190,7 +190,7 @@ fn handle_message(
 
     match message {
         Message::Response { .. } => {
-            println!("notenecs: got response - {:?}", message);
+            println!("nnotes: got response - {:?}", message);
             return Ok(());
         }
         Message::Request {
@@ -209,7 +209,7 @@ fn handle_message(
 struct Component;
 impl Guest for Component {
     fn init(our: String) {
-        println!("notenecs: begin");
+        println!("nnotes: begin");
 
         let our = Address::from_str(&our).unwrap();
         // let mut channel_id = 0;
@@ -232,7 +232,7 @@ impl Guest for Component {
             match handle_message(&our, &drive_dir) {
                 Ok(()) => {}
                 Err(e) => {
-                    println!("notenecs: error: {:?}", e);
+                    println!("nnotes: error: {:?}", e);
                 }
             };
         }
