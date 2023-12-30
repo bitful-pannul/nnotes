@@ -1,14 +1,13 @@
 // App.tsx
-import { useState, useEffect } from 'react';
+import { useState} from 'react';
 import Editor from './components/editor';
 import Item from './components/Item';
-import { TreeItem, TreeView } from '@mui/x-tree-view';
+import { TreeView } from '@mui/x-tree-view';
 import { Note } from './types';
 
 export const APP_NAME = "nnotes:nnotes:template.uq"
 
 function App() {
-  const [notes, setNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
 
   const rootNote: Note = {

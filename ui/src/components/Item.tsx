@@ -1,7 +1,6 @@
 // Item.tsx
 import React, { useState, useEffect } from 'react';
 import { TreeItem } from '@mui/x-tree-view';
-import Button from '@mui/material/Button';
 import { Note } from '../types';
 import { APP_NAME } from '../App';
 import IconButton from '@mui/material/IconButton';
