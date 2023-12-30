@@ -42,11 +42,10 @@ enum NoteResponse {
 
 // for url path parsing
 fn strip_url(url: &str, substring: &str) -> String {
-    if let Some(index) = url.find(substring) {
-        String::from(&url[index + substring.len()..])
-    } else {
-        String::from(url)
-    }
+    url.find(substring)
+       .map(|index| &url[index + substring.len()..])
+       .unwrap_or("")
+       .to_string()
 }
 
 fn handle_http_server_request(
@@ -81,7 +80,7 @@ fn handle_http_server_request(
                     if path == "" {
                         path = drive_dir.path.clone();
                     } else {
-                        path = format!("{}/{}", &drive_dir.path, path);
+                        path = format!("{}{}", &drive_dir.path, path);
                     }
 
                     let metadata = metadata(&path)?;
@@ -203,6 +202,7 @@ impl Guest for Component {
 
         // Bind HTTP path /messages
         bind_http_path("/notes", true, false).unwrap();
+        bind_http_path("/notes/*", true, false).unwrap();
 
         // Bind WebSocket path
         // bind_ws_path("/", true, false).unwrap();
